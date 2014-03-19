@@ -11,7 +11,7 @@ using HtmlAgilityPack;
 namespace WebCrawler {
 
 	class Crawler {
-		private const int BFS_MAX_DEPTH = 3;
+		private const int BFS_MAX_DEPTH = 2; //baseUrl itu level 0
 		private const int DFS_MAX_DEPTH = 1000;
 		private static char[] delimiterChars = { ' ', ',', '.', ':', '\t', '\n', '?', '\\', '/', '!',  '@'};
 		private static LinkedList<String> urlsToVisit;
@@ -25,14 +25,17 @@ namespace WebCrawler {
 			sw = new StreamWriter("out.txt");
 			baseUrl = urlpath;
 
+			Console.WriteLine("Initializing Crawler . . .");
+			sw.WriteLine(">>>>>>>>>> BFS LEVEL 0 <<<<<<<<<<\n");
 			addUrl(urlpath);
-			sw.WriteLine(urlsVisited.Count() + " " + urlsToVisit.Count() + " " + urlpath + '\n');
+			sw.WriteLine(urlsVisited.Count() + " " + urlpath);
 			if (searchtype == 0) {
 				crawlBFS();
 			} else if (searchtype == 1) {
 				crawlDFS();
 			}
 			sw.Close();
+			Console.WriteLine("Done Crawling . . .");
 		}
 
 		private static void addUrl(String urlpath) {
@@ -45,14 +48,14 @@ namespace WebCrawler {
 		}
 
 		private static void crawlBFS() {
-			for (int i = 1; i < BFS_MAX_DEPTH; ++i) {
-				sw.WriteLine("BFS LEVEL " + i + '\n');
+			for (int i = 1; i <= BFS_MAX_DEPTH; ++i) {
+				sw.WriteLine(">>>>>>>>>> BFS LEVEL " + i + " <<<<<<<<<<\n");
 				LinkedList<String> newUrl = new LinkedList<String>();
 				foreach (String urlpath in urlsToVisit) {
 					String htmlText = getHtmlText(urlpath);
 					try {
 						HtmlDocument doc = new HtmlDocument();
-						if(htmlText != null) {
+						if (htmlText != null) {
 							doc.LoadHtml(htmlText);
 							HtmlNodeCollection nodes = doc.DocumentNode.SelectNodes("//a[@href]");
 							HtmlNodeCollection divNodes = doc.DocumentNode.SelectNodes("//div");
@@ -62,7 +65,7 @@ namespace WebCrawler {
 									comment.ParentNode.RemoveChild(comment);
 								}
 							}
-							if(divNodes != null) {
+							if (divNodes != null) {
 								foreach(HtmlNode div in divNodes) {
 									String content = div.InnerText;
 									String[] words = content.Split(delimiterChars);
@@ -80,7 +83,7 @@ namespace WebCrawler {
 									}
 								}
 							}
-							if(nodes != null){
+							if (nodes != null) {
 								foreach (HtmlNode node in nodes) {
 									String url = node.Attributes[0].Value;
 									if (url.Contains(".pdf")) {
@@ -108,9 +111,9 @@ namespace WebCrawler {
 										newUrl.AddLast(url);
 										urlsVisited.Add(url);
 										System.Console.WriteLine(urlsVisited.Count);
-										sw.WriteLine(urlsVisited.Count() + " " + newUrl.Count() + " " + urlpath + '\n' + url + '\n');
+										sw.WriteLine(urlsVisited.Count() + " " + urlpath + "\n" + url + "\n");
 									} else {
-										//sw.WriteLine(">>>>> DUPLIKASI " + urlsVisited.Count() + " " + newUrl.Count() + " " + urlpath + '\n' + url + '\n');
+										//sw.WriteLine(">>>>> DUPLIKASI " + urlsVisited.Count() + " " + urlpath + "\n" + url + "\n");
 									}
 									#region comment
 									/*Regex regex = new Regex("<a[^>]+href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>");
@@ -144,7 +147,7 @@ namespace WebCrawler {
 											}
 										}
 										Regex ignore = new Regex("([^\\s]+(\\.(?i)(jpg|png|gif|bmp|doc|docx|ppt|pptx|pdf|wmv))$)");*/
-										#endregion
+									#endregion
 								}
 							}
 						}
@@ -177,7 +180,8 @@ namespace WebCrawler {
 				//Console.WriteLine(htmlText);
 				return htmlText;
 			} catch (Exception e) {
-			
+				String s = e.ToString();
+				System.Console.WriteLine(s);
 			}
 			return null;
 		}

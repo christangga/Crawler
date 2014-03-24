@@ -67,14 +67,16 @@ namespace WebCrawler {
 									String content = div.InnerText;
 									String[] words = content.Split(delimiterChars);
 									foreach(String word in words) {
-										sw.Write(word);
+										if(word != "")
+											sw.WriteLine(word);
 									}
 									
 									foreach(HtmlNode child in div.ChildNodes) {
 										String childContent = child.InnerText;
 										words = childContent.Split(delimiterChars);
 										foreach(String word in words) {
-											sw.Write(word);
+											if(word != "")
+												sw.WriteLine(word);
 										}
 											
 									}
@@ -177,7 +179,7 @@ namespace WebCrawler {
 				//Console.WriteLine(htmlText);
 				return htmlText;
 			} catch (Exception e) {
-			
+				System.Console.WriteLine(e.ToString());
 			}
 			return null;
 		}

@@ -22,24 +22,28 @@ namespace WebCrawler {
 		public Crawler(String baseUrl, int searchtype) {
 			urlsToVisit = new LinkedList<String>();
 			urlsVisited = new HashSet<String>();
-			swCrawl = new StreamWriter("crawling.txt");
-			swIndex = new StreamWriter("indexing.txt");
-			//SQLiteConnection.CreateFile("SQL.sqlite");
 			sql = new SQLiteConnection("Data Source=SQL.sqlite;Version=3;");
 			sql.Open();
 			String createDB = "create table if not exists data (URL varchar(200), Title varchar(200), Word varchar(100), UNIQUE (URL, Title, Word) on conflict replace)";
 			command = new SQLiteCommand(sql);
 			command.CommandText = createDB;
 			command.ExecuteNonQuery();
-			Console.WriteLine("Initializing Crawler . . .");
-			if (searchtype == 0) {
-				crawlBFS(baseUrl);
-			} else if (searchtype == 1) {
-				crawlDFS(baseUrl, 0);
+			Console.WriteLine("Masukkan 1 untuk crawling / lainnya untuk langsung searching");
+			string pil = Console.ReadLine();
+			if(pil == "1") {
+				swCrawl = new StreamWriter("crawling.txt");
+				swIndex = new StreamWriter("indexing.txt");
+				//SQLiteConnection.CreateFile("SQL.sqlite");
+				Console.WriteLine("Initializing Crawler . . .");
+				if (searchtype == 0) {
+					crawlBFS(baseUrl);
+				} else if (searchtype == 1) {
+					crawlDFS(baseUrl, 0);
+				}
+				swCrawl.Close();
+				swIndex.Close();
+				writeToDB();
 			}
-			swCrawl.Close();
-			swIndex.Close();
-			writeToDB();
 			Console.WriteLine("Done Crawling . . .");
 			search();
 			sql.Close();
@@ -176,7 +180,7 @@ namespace WebCrawler {
 
 				try {
 					String htmlText = getHtmlText(baseUrl);
-					Console.WriteLine(baseUrl);
+					//Console.WriteLine(baseUrl);
 					swIndex.WriteLine("<LINK>");
 					swIndex.WriteLine(baseUrl);
 					swIndex.WriteLine("</>");
@@ -372,6 +376,7 @@ namespace WebCrawler {
 
 		private void search() {
 			String input, query;
+			Console.WriteLine("Masukkan Query: ");
 			input = System.Console.ReadLine();
 			SQLiteDataReader reader;
 			while(!input.Equals("exit")) {
@@ -383,6 +388,7 @@ namespace WebCrawler {
 					Console.WriteLine("Title = " + reader["Title"]);
 				}
 				reader.Close();
+				Console.WriteLine("Masukkan Query: ");
 				input = Console.ReadLine();
 			}
 		}

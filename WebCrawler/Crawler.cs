@@ -33,13 +33,13 @@ namespace WebCrawler {
 			command.ExecuteNonQuery();
 			Console.WriteLine("Initializing Crawler . . .");
 			if (searchtype == 0) {
-				//crawlBFS(baseUrl);
+				crawlBFS(baseUrl);
 			} else if (searchtype == 1) {
-				//crawlDFS(baseUrl, 0);
+				crawlDFS(baseUrl, 0);
 			}
 			swCrawl.Close();
 			swIndex.Close();
-			//writeToDB();
+			writeToDB();
 			Console.WriteLine("Done Crawling . . .");
 			search();
 			sql.Close();
@@ -382,6 +382,7 @@ namespace WebCrawler {
 					Console.WriteLine("URL = " + reader["URL"]);
 					Console.WriteLine("Title = " + reader["Title"]);
 				}
+				reader.Close();
 				input = Console.ReadLine();
 			}
 		}

@@ -4,35 +4,38 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using MySql.Data.MySqlClient;
 
 namespace WebCrawler {
 
 	class Crawler {
 		private const int BFS_MAX_DEPTH = 2;
 		private const int DFS_MAX_DEPTH = 2;
-
-		private char[] delimiterChars = {' ', ',', '.', ':', '\t', '\n', '?', '\\', '/', '!', '@', '\r', '(', ')', '\'', '\"', '<', '>', '[', ']', '{', '}', '|', '”', '“', '~'};
+		
+		private char[] delimiterChars = {' ', ',', '.', ':', '\t', '\n', '?', '\\', '/', '!', '@', '\r', '(', ')', '\'', '\"', '<', '>', '[', ']', '{', '}', '|', '”', '“', '~', '#', '&', '-'};
 		private LinkedList<String> urlsToVisit;
 		private HashSet<String> urlsVisited;
-		private StreamWriter swCrawl, swIndex;
+		private StreamWriter swCrawl, swIndex, swErrLog;
 
-		SQLiteConnection sql;
-		SQLiteCommand command;
-		
+		MySqlConnection sql;
+		MySqlCommand command;
 		public Crawler(String baseUrl, int searchtype) {
 			urlsToVisit = new LinkedList<String>();
 			urlsVisited = new HashSet<String>();
-			sql = new SQLiteConnection("Data Source=SQL.sqlite;Version=3;");
+			sql = new MySqlConnection(@"server=localhost;database=SQL;userid=root;");
 			sql.Open();
-			String createDB = "create table if not exists data (URL varchar(200), Title varchar(200), Word varchar(100), UNIQUE (URL, Title, Word) on conflict replace)";
-			command = new SQLiteCommand(sql);
-			command.CommandText = createDB;
-			command.ExecuteNonQuery();
-			Console.WriteLine("Masukkan 1 untuk crawling / lainnya untuk langsung searching");
+			//String createDB = "create table if not exists data (URL varchar(200), Title varchar(200), Word varchar(100), UNIQUE (URL, Title, Word) on conflict replace)";
+			command = sql.CreateCommand();
+			//command.CommandText = createDB;
+			//command.ExecuteNonQuery();
+			Console.WriteLine("1. Crawling");
+			Console.WriteLine("2. Export data to MySQL");
+			Console.WriteLine("Else. Begin Searching");
 			string pil = Console.ReadLine();
 			if(pil == "1") {
 				swCrawl = new StreamWriter("crawling.txt");
 				swIndex = new StreamWriter("indexing.txt");
+				swErrLog = new StreamWriter("errlog.txt");
 				//SQLiteConnection.CreateFile("SQL.sqlite");
 				Console.WriteLine("Initializing Crawler . . .");
 				if (searchtype == 0) {
@@ -42,9 +45,15 @@ namespace WebCrawler {
 				}
 				swCrawl.Close();
 				swIndex.Close();
+				swErrLog.Close();
+				Console.WriteLine("Done Crawling . . .");
+				Console.WriteLine("Exporting to MySQL . . .");
 				writeToDB();
 			}
-			Console.WriteLine("Done Crawling . . .");
+			if(pil == "2") {
+				writeToDB();
+			}
+			Console.WriteLine("Ready for Searching");
 			search();
 			sql.Close();
 			
@@ -59,7 +68,7 @@ namespace WebCrawler {
 			try {
 				HttpWebRequest request = (HttpWebRequest) HttpWebRequest.Create(urlpath);
 				request.UserAgent = "Crawler";
-				request.Timeout = 1000;
+				//request.Timeout = 1000;
 				WebResponse response = request.GetResponse();
 				Stream stream = response.GetResponseStream();
 				StreamReader reader = new StreamReader(stream);
@@ -67,7 +76,7 @@ namespace WebCrawler {
 				return htmlText;
 			} catch (Exception e) {
 				String s = e.ToString();
-				Console.WriteLine(s);
+				swErrLog.WriteLine(s);
 			}
 			return null;
 		}
@@ -118,53 +127,10 @@ namespace WebCrawler {
 
 							// indexing
 							indexing(doc);
-
-
-							/*if (divNodes != null) {
-								foreach (HtmlNode div in divNodes) {
-									String content = div.InnerText;
-									String[] words = content.Split(delimiterChars);
-									using(var trans = sql.BeginTransaction()) {
-										using(var cmd = sql.CreateCommand()) {
-											foreach(String word in words) {
-												if(word != "") {
-													String addCommand = "insert into data (URL, word) values ('" + baseUrl + "', '" + word +"')";
-													//Console.WriteLine(addCommand);
-													cmd.CommandText = addCommand;
-													//cmd.ExecuteNonQuery();
-													swCrawl.WriteLine(word);
-												}
-											}
-										}
-										trans.Commit();
-									}
-											
-
-									foreach (HtmlNode child in div.ChildNodes) {
-										String childContent = child.InnerText;
-										words = childContent.Split(delimiterChars);
-										using(var trans = sql.BeginTransaction()) {
-											using(var cmd = sql.CreateCommand()) {
-												foreach (String word in words) {
-													if(word != "") {
-														swCrawl.WriteLine(word);
-														String addCommand = "insert into data (URL, word) values ('"+ baseUrl + "', '" + word +"')";
-														//Console.WriteLine(addCommand);
-														cmd.CommandText = addCommand;
-														//cmd.ExecuteNonQuery();
-													}
-												}
-											}
-											trans.Commit();
-										}
-									}
-								}
-							}*/
-							
 						}
 					} catch (Exception e) {
 						String s = e.ToString();
-						Console.WriteLine(s);
+						swErrLog.WriteLine(s);
 					}
 				}
 				urlsToVisit = newUrl;
@@ -172,7 +138,6 @@ namespace WebCrawler {
 		}
 
 		private void crawlDFS(String baseUrl, int depth) {
-			String urlpath = "";
 			if (depth > DFS_MAX_DEPTH) {
 
 			} else {
@@ -217,50 +182,10 @@ namespace WebCrawler {
 
 						// indexing
 						indexing(doc);
-
-						/*if (divNodes != null) {
-							foreach (HtmlNode div in divNodes) {
-								String content = div.InnerText;
-								String[] words = content.Split(delimiterChars);
-								using(var trans = sql.BeginTransaction()) {
-									using(var cmd = sql.CreateCommand()) {
-										foreach (String word in words) {
-											if(word != "") {
-												swCrawl.WriteLine(word);
-												String addCommand = "insert into data (URL, word) values ('" + baseUrl + "', '" + word +"')";
-												//Console.WriteLine(addCommand);
-												cmd.CommandText = addCommand;
-												//cmd.ExecuteNonQuery();
-											}
-										}
-									}
-									trans.Commit();
-								}
-								
-								foreach (HtmlNode child in div.ChildNodes) {
-									String childContent = child.InnerText;
-									words = childContent.Split(delimiterChars);
-									using(var trans = sql.BeginTransaction()) {
-										using(var cmd = sql.CreateCommand()) {
-											foreach (String word in words) {
-												if(word != "") {
-													swCrawl.WriteLine(word);
-													String addCommand = "insert into data (URL, word) values ('" + baseUrl + "', '" + word +"')";
-													//Console.WriteLine(addCommand);
-													cmd.CommandText = addCommand;
-													//cmd.ExecuteNonQuery();
-												}	
-											}
-										}
-										trans.Commit();
-									}
-								}
-							}
-						}*/
 					}
 				} catch (Exception e) {
 					String s = e.ToString();
-					System.Console.WriteLine(s);
+					swErrLog.WriteLine(s);
 				}
 			}
 			
@@ -286,18 +211,6 @@ namespace WebCrawler {
 				swIndex.WriteLine();
 			}
 			swIndex.WriteLine("</>");
-
-			/*swIndex.WriteLine("<LINK>");
-			foreach (HtmlNode attNode in doc.DocumentNode.SelectNodes("//a")) {
-				String[] words = attNode.InnerText.Split(delimiterChars);
-				foreach (String word in words) {
-					if (!word.Equals("")) {
-						swIndex.WriteLine(word + " ");
-					}
-				}
-			}
-			swIndex.WriteLine("</LINK>");*/
-
 			swIndex.WriteLine("<WORD>");
 			foreach (HtmlNode div in doc.DocumentNode.SelectNodes("//div")) {
 				String[] words = div.InnerText.Split(delimiterChars);
@@ -315,10 +228,6 @@ namespace WebCrawler {
 							foreach (String word in words) {
 								if(word != "") {
 									swIndex.WriteLine(word);
-									//String addCommand = "insert into data (URL, word) values ('" + baseUrl + "', '" + word +"')";
-									//Console.WriteLine(addCommand);
-									//cmd.CommandText = addCommand;
-									//cmd.ExecuteNonQuery();
 								}	
 							}
 						}
@@ -350,7 +259,7 @@ namespace WebCrawler {
 						case WORD:
 							if(line != "</>") {
 								word = String.Copy(line);
-								String addCommand = "insert into data (URL, Title, Word) values ('" + link + "', '" + title +"', '"+ word + "')";
+								String addCommand = "replace into data (URL, Title, Word) values ('" + link + "', '" + title +"', '"+ word + "')";
 								//Console.WriteLine(addCommand);
 								cmd.CommandText = addCommand;
 								cmd.ExecuteNonQuery();	
@@ -375,17 +284,48 @@ namespace WebCrawler {
 		}
 
 		private void search() {
+			Boolean firstWord;
 			String input, query;
 			Console.WriteLine("Masukkan Query: ");
 			input = System.Console.ReadLine();
-			SQLiteDataReader reader;
+			
+			MySqlDataReader reader;
 			while(!input.Equals("exit")) {
-				query = "SELECT URL, Title FROM data WHERE Word LIKE '%" + input + "%'";
+				firstWord = true;
+				int i = 0;
+				String[] listInput = input.Split(delimiterChars);
+				
+				if(listInput.Length == 1) {
+					query = "SELECT URL, Title FROM data WHERE Word LIKE '%" + listInput[0] + "%'";
+					query += "GROUP BY URL ORDER BY URL ASC";
+				}
+				else {
+					query = "SELECT a0.URL, a0.Title FROM ";
+					for(int j = 1; j < listInput.Length; j++ ) {
+						query += "(";
+					}
+					query += " ((SELECT * FROM data WHERE Word LIKE '%" + listInput[0] + "%') a" + i + ")";
+					foreach(String word in listInput){
+						if(firstWord){
+							firstWord = false;
+						}
+						else {
+							i++;
+							query += " INNER JOIN ((SELECT b"+i+".* FROM data b"+i;
+							query += " WHERE Word LIKE '%" + word + "%') a" + i;
+							i++;
+							query += " ) ON a0.URL=a" + (i - 1) + ".URL)";
+						}
+					}
+					query += "GROUP BY a0.URL ORDER BY a0.URL ASC";
+				}
+				
+				//Console.WriteLine(query);
 				command.CommandText = query;
 				reader = command.ExecuteReader();
 				while(reader.Read()) {
 					Console.WriteLine("URL = " + reader["URL"]);
-					Console.WriteLine("Title = " + reader["Title"]);
+					//Console.WriteLine("Title = " + reader["Title"]);
 				}
 				reader.Close();
 				Console.WriteLine("Masukkan Query: ");

@@ -287,7 +287,7 @@ namespace WebCrawler {
 			Boolean firstWord;
 			String input, query;
 			Console.WriteLine("Masukkan Query: ");
-			input = System.Console.ReadLine();
+			input = Console.ReadLine();
 			
 			MySqlDataReader reader;
 			while(!input.Equals("exit")) {

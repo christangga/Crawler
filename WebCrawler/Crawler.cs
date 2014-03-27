@@ -8,53 +8,75 @@ using MySql.Data.MySqlClient;
 namespace WebCrawler {
 
 	class Crawler {
-		private const int BFS_MAX_DEPTH = 2;
-		private const int DFS_MAX_DEPTH = 2;
-		private const int BFS_MAX_PAGES = 1000;
-		private const int DFS_MAX_PAGES = 1000;
+		private int BFS_MAX_DEPTH;
+		private int DFS_MAX_DEPTH;
+		private int BFS_MAX_PAGES;
+		private int DFS_MAX_PAGES;
 
-		public static string[] delimiterStrings = { " ", ",", ".", ":", "\t", "\n", "?", "\\", "/", "!", "@", "\r", "(", ")", "\"", "\'", "<", ">", "[", "]", "{", "}", "|", "”", "“", "~", "#", "&", "-" };
+		public static string[] delimiterStrings = { " ", ",", ".", ":", "\t", "\n", "?", "\\", "/", "!", "@", "\r", "(", ")", "\"", "\'", "<", ">", "[", "]", "{", "}", "|", "”", "“", "~", "#", "&", "-", ";" };
 
-		private LinkedList<String> urlsToVisit = new LinkedList<String>();
-		private HashSet<String> urlsVisitHash = new HashSet<String>();
-		private HashSet<String> urlsVisited = new HashSet<String>();
-		private StreamWriter swCrawl = new StreamWriter("crawling2.txt");
-		private StreamWriter swIndex = new StreamWriter("indexing2.txt");
-		private StreamWriter swErrLog = new StreamWriter("errlog2.txt");
-		private StreamWriter exportLine = new StreamWriter("exportline2.txt");
-		private MySqlConnection sql = new MySqlConnection(@"server=localhost;database=SQL;userid=root;");
+		private LinkedList<String> urlsToVisit;
+		private HashSet<String> urlsVisitHash;
+		private HashSet<String> urlsVisited;
+		private StreamWriter swCrawl;
+		private StreamWriter swIndex;
+		private StreamWriter swErrLog;
+		private StreamWriter exportLine;
+		private MySqlConnection sql;
 		private MySqlCommand command;
 		private int lineNumbers;
 
-		public Crawler(String baseUrl, int crawltype, int maxpages) {
+		public Crawler() {
+			urlsToVisit = new LinkedList<String>();
+			urlsVisitHash = new HashSet<String>();
+			urlsVisited = new HashSet<String>();
+			sql = new MySqlConnection(@"server=localhost;database=SQL;userid=root;");
+			command = sql.CreateCommand();
+		}
+
+		public void export(){
+			sql.Open();
+			StreamReader file = new StreamReader("exportline.txt");
+			lineNumbers = int.Parse(file.ReadLine());
+			file.Close();
+			Console.WriteLine("Done Crawling . . .");
+			Console.WriteLine("Exporting to MySQL . . .");
+			writeToDB();
+			Console.WriteLine("Exporting to MySQL done . . .");
+			sql.Close();
+		}
+
+
+		public void crawl(String baseUrl, int crawltype, int limitType) {
+			swCrawl = new StreamWriter("crawling.txt");
+			swIndex = new StreamWriter("indexing.txt");
+			swErrLog = new StreamWriter("errlog.txt");
+			exportLine = new StreamWriter("exportline.txt");
 			lineNumbers = 0;
 			//String createDB = "create table if not exists data (URL varchar(200), Title varchar(200), Word varchar(100), UNIQUE (URL, Title, Word) on conflict replace)";
 			//command.CommandText = createDB;
 			//command.ExecuteNonQuery();
 			//SQLiteConnection.CreateFile("SQL.sqlite");
 			sql.Open();
-			command = sql.CreateCommand();
+			
 
 			Console.WriteLine("Initializing Crawler . . .");
-			/*if (crawltype == 0) {
-				//crawlBFSdepth(baseUrl);
-				crawlBFSpages(baseUrl);
+			if (crawltype == 0) {
+				if(limitType == 1)
+					crawlBFSdepth(baseUrl);
+				else if(limitType == 2)
+					crawlBFSpages(baseUrl);
 			} else if (crawltype == 1) {
-				//crawlDFSdepth(baseUrl, 0);
-				crawlDFSpages(baseUrl, 0);
-			}*/
+				if(limitType == 1)
+					crawlDFSdepth(baseUrl, 0);
+				else if(limitType == 2)
+					crawlDFSpages(baseUrl, 0);
+			}
 			swCrawl.Close();
 			swIndex.Close();
 			swErrLog.Close();
 			exportLine.WriteLine(lineNumbers);
 			exportLine.Close();
-			StreamReader file = new StreamReader("exportline.txt");
-			lineNumbers = 295000;//int.Parse(file.ReadLine());
-			file.Close();
-			Console.WriteLine("Done Crawling . . .");
-			Console.WriteLine("Exporting to MySQL . . .");
-			writeToDB();
-			Console.WriteLine("Exporting to MySQL done . . .");
 			sql.Close();
 		}
 
@@ -102,17 +124,14 @@ namespace WebCrawler {
 							foreach (HtmlNode attNode in doc.DocumentNode.SelectNodes("//a")) {
 								String url = attNode.GetAttributeValue("href", null);
 								if (url != null) {
-									if (isUrlIgnored(url)) {
-										continue;
-									} else {
-										url = new Uri(new Uri(urlpath), url).AbsoluteUri.ToString();
-									}
-									if (!urlsVisited.Contains(url)) {
+									url = new Uri(new Uri(urlpath), url).AbsoluteUri.ToString();
+									if (!urlsVisitHash.Contains(url) && !isUrlIgnored(url)) {
 										newUrl.AddLast(url);
-										urlsVisited.Add(url);
+										urlsVisitHash.Add(url);
 										Console.WriteLine(urlsVisited.Count);
-										swCrawl.WriteLine(urlsVisited.Count + " " + urlpath + " " + url);
+										swCrawl.WriteLine(urlsVisited.Count + " " + url);
 									}
+									Console.WriteLine(urlsVisited.Count + " " + urlsToVisit.Count + " " + url);
 								}
 							}
 							HtmlNodeCollection divNodes = doc.DocumentNode.SelectNodes("//div");
@@ -126,6 +145,7 @@ namespace WebCrawler {
 
 							// indexing
 							indexing(doc);
+							urlsVisited.Add(urlpath);
 						}
 					} catch (Exception e) {
 						String s = e.ToString();
@@ -161,8 +181,9 @@ namespace WebCrawler {
 							if (url != null) {
 								url = new Uri(new Uri(urlpath), url).AbsoluteUri.ToString();
 								if (!urlsVisitHash.Contains(url) && !isUrlIgnored(url)) {
+									counter++;
 									addUrl(url);
-									swCrawl.WriteLine(urlsVisited.Count + " " + urlpath + " " + url);
+									swCrawl.WriteLine(counter + " " + urlpath + " " + url);
 								}
 								Console.WriteLine(urlsVisited.Count + " " + urlsToVisit.Count + " " + url);
 							}
@@ -189,11 +210,8 @@ namespace WebCrawler {
 		}
 
 		private void crawlDFSdepth(String baseUrl, int depth) {
-			if (depth > DFS_MAX_DEPTH) {
-
-			} else {
+			if (depth < DFS_MAX_DEPTH) {
 				urlsVisited.Add(baseUrl);
-
 				try {
 					String htmlText = getHtmlText(baseUrl);
 					//Console.WriteLine(baseUrl);
@@ -208,13 +226,9 @@ namespace WebCrawler {
 						foreach (HtmlNode attNode in doc.DocumentNode.SelectNodes("//a")) {
 							String url = attNode.GetAttributeValue("href", null);
 							if (url != null) {
-								if (isUrlIgnored(url)) {
-									continue;
-								} else {
-									url = new Uri(new Uri(baseUrl), url).AbsoluteUri.ToString();
-								}
-								if (!urlsVisited.Contains(url)) {
-									Console.WriteLine(urlsVisited.Count);
+								url = new Uri(new Uri(baseUrl), url).AbsoluteUri.ToString();
+								if (!urlsVisitHash.Contains(url) && !isUrlIgnored(url)) {
+									urlsVisitHash.Add(url);
 									swCrawl.WriteLine(depth + " " + baseUrl + " " + url);
 									if (depth <= DFS_MAX_DEPTH) {
 										crawlDFSdepth(url, depth + 1);
@@ -222,6 +236,7 @@ namespace WebCrawler {
 								}
 							}
 						}
+						Console.WriteLine(urlsVisited.Count + " " + baseUrl);
 						HtmlNodeCollection divNodes = doc.DocumentNode.SelectNodes("//div");
 						HtmlNodeCollection comments = doc.DocumentNode.SelectNodes("//comment()");
 						
@@ -233,6 +248,7 @@ namespace WebCrawler {
 
 						// indexing
 						indexing(doc);
+						urlsVisited.Add("dummy");
 					}
 				} catch (Exception e) {
 					String s = e.ToString();
@@ -243,11 +259,8 @@ namespace WebCrawler {
 		}
 
 		private void crawlDFSpages(String baseUrl, int counter) {
-			if (counter > DFS_MAX_PAGES) {
-
-			} else {
+			if (urlsVisited.Count < DFS_MAX_PAGES) {
 				urlsVisited.Add(baseUrl);
-
 				try {
 					String htmlText = getHtmlText(baseUrl);
 					//Console.WriteLine(baseUrl);
@@ -262,13 +275,10 @@ namespace WebCrawler {
 						foreach (HtmlNode attNode in doc.DocumentNode.SelectNodes("//a")) {
 							String url = attNode.GetAttributeValue("href", null);
 							if (url != null) {
-								if (isUrlIgnored(url)) {
-									continue;
-								} else {
-									url = new Uri(new Uri(baseUrl), url).AbsoluteUri.ToString();
-								}
-								if (!urlsVisited.Contains(url)) {
-									Console.WriteLine(urlsVisited.Count);
+								url = new Uri(new Uri(baseUrl), url).AbsoluteUri.ToString();
+								if (!urlsVisitHash.Contains(url)) {
+									counter++;
+									urlsVisitHash.Add(url);
 									swCrawl.WriteLine(counter + " " + baseUrl + " " + url);
 									if (counter <= DFS_MAX_PAGES) {
 										crawlDFSdepth(url, counter + 1);
@@ -276,6 +286,7 @@ namespace WebCrawler {
 								}
 							}
 						}
+						Console.WriteLine(urlsVisited.Count + " " + baseUrl);
 						HtmlNodeCollection divNodes = doc.DocumentNode.SelectNodes("//div");
 						HtmlNodeCollection comments = doc.DocumentNode.SelectNodes("//comment()");
 
@@ -287,6 +298,7 @@ namespace WebCrawler {
 
 						// indexing
 						indexing(doc);
+						urlsVisited.Add("dummy");
 					}
 				} catch (Exception e) {
 					String s = e.ToString();
@@ -320,6 +332,7 @@ namespace WebCrawler {
 			swIndex.WriteLine("</>"); lineNumbers++;
 			swIndex.WriteLine("<WORD>"); lineNumbers++;
 			Console.WriteLine("indexing div");
+			HashSet<String> entry = new HashSet<String>();
 			foreach (HtmlNode div in doc.DocumentNode.SelectNodes("//div")) {
 				int nchild = 0;
 				ndiv++;
@@ -329,10 +342,11 @@ namespace WebCrawler {
 					nword++;
 					//Console.WriteLine("nword " + nword);
 					if (!word.Equals("")) {
-						swIndex.Write(word + " "); lineNumbers++;
+						if(!entry.Contains(word)) {
+							entry.Add(word);
+						}
 					}
 				}
-				swIndex.WriteLine(); lineNumbers++;
 
 				foreach (HtmlNode child in div.ChildNodes) {
 					nchild++;
@@ -343,11 +357,15 @@ namespace WebCrawler {
 						nword++;
 						//Console.WriteLine("nword " + nword);
 						if(!word.Equals("")) {
-							swIndex.Write(word + " "); lineNumbers++;
+							if(!entry.Contains(word)) {
+								entry.Add(word);
+							}
 						}	
 					}
-					swIndex.WriteLine(); lineNumbers++;
 				}
+			}
+			foreach(String word in entry) {
+				swIndex.WriteLine(word); lineNumbers++;
 			}
 			Console.WriteLine("done indexing div");
 			swIndex.WriteLine("</>"); lineNumbers++;
@@ -365,8 +383,8 @@ namespace WebCrawler {
 				using(var cmd = sql.CreateCommand()) {	
 					while((line = file.ReadLine()) != null) {
 						Iline++;
-						Console.Clear();
-						Console.WriteLine("Exporting to MySQL " + Iline + " " + lineNumbers);
+						if(Iline % 10000 == 0)
+							Console.WriteLine(Iline + " of " + lineNumbers);
 						switch(part) {
 						case LINK:
 							link = String.Copy(line);
@@ -377,12 +395,10 @@ namespace WebCrawler {
 						case WORD:
 							if(line != "</>") {
 								word = String.Copy(line);
-								if(!word.Equals("")) {
-									String addCommand = "replace into data (URL, Title, Word) values ('" + link + "', '" + title +"', '"+ word + "')";
-									//Console.WriteLine(addCommand);
-									cmd.CommandText = addCommand;
-									cmd.ExecuteNonQuery();	
-								}
+								String addCommand = "replace into data (URL, Title, Word) values ('" + link + "', '" + title +"', '"+ word + "')";
+								//Console.WriteLine(addCommand);
+								cmd.CommandText = addCommand;
+								cmd.ExecuteNonQuery();	
 							}
 							break;
 						default:
@@ -401,6 +417,16 @@ namespace WebCrawler {
 				}
 				trans.Commit();
 			}
+		}
+
+		public void setMaxDepth(int n) {
+			DFS_MAX_DEPTH = n;
+			BFS_MAX_DEPTH = n;
+		}
+
+		public void setMaxPage(int n) {
+			DFS_MAX_PAGES = n;
+			BFS_MAX_PAGES = n;
 		}
 	}
 

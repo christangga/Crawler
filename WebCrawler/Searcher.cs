@@ -24,10 +24,6 @@ namespace WebCrawler {
 				firstWord = true;
 				int i = 0;
 				String[] listInput = input.Split(Crawler.delimiterStrings, StringSplitOptions.None);
-				foreach(String word in listInput) {
-					Console.Write(word + "word");
-				}
-				Console.Write("end");
 				if(listInput.Length == 1) {
 					query = "SELECT URL, Title FROM data WHERE Word LIKE '%" + listInput[0] + "%'";
 					query += "GROUP BY URL ORDER BY URL ASC";
@@ -53,7 +49,7 @@ namespace WebCrawler {
 					query += "GROUP BY a0.URL ORDER BY a0.URL ASC";
 				}
 
-				//System.Console.WriteLine(query);
+				System.Console.WriteLine(query);
 				command.CommandText = query;
 				reader = command.ExecuteReader();
 				while(reader.Read()) {

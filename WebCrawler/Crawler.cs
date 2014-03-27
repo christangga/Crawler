@@ -22,44 +22,23 @@ namespace WebCrawler {
 		private StreamWriter swIndex;
 		private StreamWriter swErrLog;
 		private StreamWriter exportLine;
-		private MySqlConnection sql;
-		private MySqlCommand command;
+		private WebProxy proxy;
 		private int lineNumbers;
 
 		public Crawler() {
 			urlsToVisit = new LinkedList<String>();
 			urlsVisitHash = new HashSet<String>();
 			urlsVisited = new HashSet<String>();
-			sql = new MySqlConnection(@"server=localhost;database=SQL;userid=root;");
-			command = sql.CreateCommand();
-		}
-
-		public void export(){
-			sql.Open();
-			StreamReader file = new StreamReader("exportline.txt");
-			lineNumbers = int.Parse(file.ReadLine());
-			file.Close();
-			Console.WriteLine("Done Crawling . . .");
-			Console.WriteLine("Exporting to MySQL . . .");
-			writeToDB();
-			Console.WriteLine("Exporting to MySQL done . . .");
-			sql.Close();
-		}
-
-
-		public void crawl(String baseUrl, int crawltype, int limitType) {
 			swCrawl = new StreamWriter("crawling.txt");
 			swIndex = new StreamWriter("indexing.txt");
 			swErrLog = new StreamWriter("errlog.txt");
 			exportLine = new StreamWriter("exportline.txt");
-			lineNumbers = 0;
-			//String createDB = "create table if not exists data (URL varchar(200), Title varchar(200), Word varchar(100), UNIQUE (URL, Title, Word) on conflict replace)";
-			//command.CommandText = createDB;
-			//command.ExecuteNonQuery();
-			//SQLiteConnection.CreateFile("SQL.sqlite");
-			sql.Open();
-			
+			proxy = new WebProxy("http://cache.itb.ac.id:8080", true);
+			proxy.Credentials = new NetworkCredential("gilangjulians", "wakwawwawaww12112");
+		}
 
+		public void crawl(String baseUrl, int crawltype, int limitType) {
+			lineNumbers = 0;
 			Console.WriteLine("Initializing Crawler . . .");
 			if (crawltype == 0) {
 				if(limitType == 1)
@@ -72,12 +51,12 @@ namespace WebCrawler {
 				else if(limitType == 2)
 					crawlDFSpages(baseUrl, 0);
 			}
+			exportLine.WriteLine(lineNumbers);
+
 			swCrawl.Close();
 			swIndex.Close();
 			swErrLog.Close();
-			exportLine.WriteLine(lineNumbers);
 			exportLine.Close();
-			sql.Close();
 		}
 
 		private void addUrl(String urlpath) {
@@ -89,7 +68,8 @@ namespace WebCrawler {
 			try {
 				HttpWebRequest request = (HttpWebRequest) HttpWebRequest.Create(urlpath);
 				request.UserAgent = "Crawler";
-				request.Timeout = 1000;
+				request.Proxy = proxy;
+				//request.Timeout = 1000;
 				WebResponse response = request.GetResponse();
 				Stream stream = response.GetResponseStream();
 				StreamReader reader = new StreamReader(stream);
@@ -161,7 +141,7 @@ namespace WebCrawler {
 			addUrl(baseUrl);
 			++counter;
 			swCrawl.WriteLine(urlsVisited.Count + " " + baseUrl + "\n");
-			while(urlsVisited.Count < BFS_MAX_PAGES) {
+			while(urlsVisited.Count < BFS_MAX_PAGES && urlsToVisit.Count > 0) {
 				LinkedListNode<String> node = urlsToVisit.First;
 				String urlpath = node.Value;
 				urlsToVisit.RemoveFirst();
@@ -204,7 +184,7 @@ namespace WebCrawler {
 					}
 				} catch (Exception e) {
 					String s = e.ToString();
-					swErrLog.WriteLine(s);
+					Console.WriteLine(s);
 				}
 			}
 		}
@@ -336,11 +316,9 @@ namespace WebCrawler {
 			foreach (HtmlNode div in doc.DocumentNode.SelectNodes("//div")) {
 				int nchild = 0;
 				ndiv++;
-				//Console.WriteLine("ndiv " + ndiv);
 				String[] words = div.InnerText.Split(delimiterStrings, StringSplitOptions.RemoveEmptyEntries);
 				foreach (String word in words) {
 					nword++;
-					//Console.WriteLine("nword " + nword);
 					if (!word.Equals("")) {
 						if(!entry.Contains(word)) {
 							entry.Add(word);
@@ -350,12 +328,10 @@ namespace WebCrawler {
 
 				foreach (HtmlNode child in div.ChildNodes) {
 					nchild++;
-					//Console.WriteLine("nchild " + nchild);
 					String childContent = child.InnerText;
 					words = childContent.Split(delimiterStrings, StringSplitOptions.RemoveEmptyEntries);
 					foreach (String word in words) {
 						nword++;
-						//Console.WriteLine("nword " + nword);
 						if(!word.Equals("")) {
 							if(!entry.Contains(word)) {
 								entry.Add(word);
@@ -369,54 +345,6 @@ namespace WebCrawler {
 			}
 			Console.WriteLine("done indexing div");
 			swIndex.WriteLine("</>"); lineNumbers++;
-		}
-
-		private void writeToDB() {
-			const int LINK = 0;
-			const int TITLE = 1;
-			const int WORD = 2;
-			int Iline = 0;
-			int part = -1;
-			string line, link = "", title = "", word = "";
-			StreamReader file = new StreamReader("indexing.txt");
-			using(var trans = sql.BeginTransaction()) {
-				using(var cmd = sql.CreateCommand()) {	
-					while((line = file.ReadLine()) != null) {
-						Iline++;
-						if(Iline % 10000 == 0)
-							Console.WriteLine(Iline + " of " + lineNumbers);
-						switch(part) {
-						case LINK:
-							link = String.Copy(line);
-							break;
-						case TITLE:
-							title = String.Copy(line);
-							break;
-						case WORD:
-							if(line != "</>") {
-								word = String.Copy(line);
-								String addCommand = "replace into data (URL, Title, Word) values ('" + link + "', '" + title +"', '"+ word + "')";
-								//Console.WriteLine(addCommand);
-								cmd.CommandText = addCommand;
-								cmd.ExecuteNonQuery();	
-							}
-							break;
-						default:
-							break;
-						}
-						if(line.Equals("<LINK>"))
-							part = LINK;
-						else if(line.Equals("<TITLE>"))
-							part = TITLE;
-						else if(line.Equals("<WORD>"))
-							part = WORD;
-						else if(part != WORD)
-							part = -1;
-						//System.Console.WriteLine("line " + line + " part " + part + " link "+ link + " title " + title + " word " + word);
-					}
-				}
-				trans.Commit();
-			}
 		}
 
 		public void setMaxDepth(int n) {
